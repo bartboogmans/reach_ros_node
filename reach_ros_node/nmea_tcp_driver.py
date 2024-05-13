@@ -130,8 +130,9 @@ class ros2_ReachSocketHandler(Node):
             # Convert the part to a string
             partstr = part.decode('utf-8')
             
-            # Print buffered line so far:
-            self.get_logger().info('Buffered line: %s , added part: %s' % linestr % partstr)
+            # Log the part
+            self.get_logger().info('Received part: %s' % partstr)
+
         return line
     
 def main(args=None):
