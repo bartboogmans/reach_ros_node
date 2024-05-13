@@ -130,8 +130,14 @@ class ros2_ReachSocketHandler(Node):
             # Convert the part to a string
             partstr = part.decode('utf-8')
             
+            # calculate the length of the part
+            partlen = len(partstr)
+
+            # Print the length of the part
+            self.get_logger().info('Length of part: %s' % (partlen))
+
             # Log the part
-            self.get_logger().info('Received part: %s' % partstr)
+            self.get_logger().info('Received part: %s' % (partstr))
 
         return line
     
