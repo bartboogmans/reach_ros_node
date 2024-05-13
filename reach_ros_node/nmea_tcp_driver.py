@@ -124,8 +124,14 @@ class ros2_ReachSocketHandler(Node):
             elif part == b"\n":
                 break
 
+            # Convert the line to a string
+            linestr = line.decode('utf-8')
+
+            # Convert the part to a string
+            partstr = part.decode('utf-8')
+            
             # Print buffered line so far:
-            self.get_logger().info('Buffered line: %s , added part: %s' % line % part)
+            self.get_logger().info('Buffered line: %s , added part: %s' % linestr % partstr)
         return line
     
 def main(args=None):
