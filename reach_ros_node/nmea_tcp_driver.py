@@ -123,6 +123,9 @@ class ros2_ReachSocketHandler(Node):
                 line += part
             elif part == b"\n":
                 break
+
+            # Print buffered line so far:
+            self.get_logger().info('Buffered line: %s , added part: %s' % line % part)
         return line
     
 def main(args=None):
