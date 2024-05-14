@@ -50,9 +50,41 @@ class ros2_ReachSocketHandler(Node):
                 ('frame_gps', 'gps'),
                 ('frame_timeref', 'gps'),
                 ('use_rostime', True),
-                ('use_rmc', False)]
+                ('use_rmc', False),
+                ('report_period', 2.0),
+                ('internal_rate', 1000.0) ]
         )
-             
+
+        self.internal_frequency= float(self.get_parameter('internal_rate').value)
+        self.timer_mainloop = self.create_timer(1.0/self.internal_frequency, self.mainloop)
+        self.lines_read_tracker = 0
+        self.report_period = self.get_parameter('report_period').value
+        self.timer_report_status = self.create_timer(1, self.report_status)
+        self.timestamp_last_report = self.get_clock().now()
+
+        self.start()
+    
+    def report_status(self):
+        now = self.get_clock().now()
+        dt = now - self.timestamp_last_report
+        line_frequency = self.lines_read_tracker/dt.nanoseconds * 1e9
+        self.get_logger().info("Lines read: %d, Frequency: %f Hz" % (self.lines_read_tracker, line_frequency))
+        self.lines_read_tracker = 0
+        self.timestamp_last_report = now
+
+    def mainloop(self):
+        if rclpy.ok():
+            try:
+                data = self.buffered_readLine().strip() # read one line from the socket until the newline character
+                try:
+                    self.driver.process_line(data) # process the line
+                    self.lines_read_tracker += 1
+                except ValueError as e:
+                    self.get_logger().info("Value error, likely due to missing fields in the NMEA message. Error was: %s." % e)
+            except Exception as e:
+                self.get_logger().error("an error occured while reading lines from device. Error was: %s." %e)
+                self.soc.close()
+
     # Should open the connection and connect to the device
     # This will then also start publishing the information
     def start(self):
@@ -60,22 +92,9 @@ class ros2_ReachSocketHandler(Node):
         self.get_logger().info('Connecting to Reach RTK %s on port %s' % (str(self.get_parameter('host').value),str(self.get_parameter('port').value)))
         self.connect_to_device()
         try:
-            driver = reach_ros_node.driver.RosNMEADriver(self)
+            self.driver = reach_ros_node.driver.RosNMEADriver(self)
         except Exception as e:
             self.get_logger().error("an error occured while trying to make the driver. Error was: %s." %e)
-
-        try:
-            while rclpy.ok():
-                data = self.buffered_readLine().strip()  
-                rclpy.spin_once(self, timeout_sec=0.1) # allow functions such as ros2 node info, ros2 param list to work
-                try:
-                    driver.process_line(data) 
-                except ValueError as e:
-                    self.get_logger().info("Value error, likely due to missing fields in the NMEA message. Error was: %s." % e)
-        except Exception as e:
-            self.get_logger().error("an error occured while reading lines from device. Error was: %s." %e)
-            # Close GPS socket when done
-            self.soc.close()
 
     # Try to connect to the device, allows for reconnection
     # Will loop till we get a connection, note we have a long timeout
@@ -123,37 +142,17 @@ class ros2_ReachSocketHandler(Node):
                 line += part
             elif part == b"\n":
                 break
-
-            # Convert the line to a string
-            linestr = line.decode('utf-8')
-
-            # Convert the part to a string
-            partstr = part.decode('utf-8')
-            
-            # calculate the length of the part
-            partlen = len(partstr)
-
-            # Print the length of the part
-            self.get_logger().info('Length of part: %s' % (partlen))
-
-            # Log the part
-            self.get_logger().info('Received part: %s' % (partstr))
-
         return line
     
 def main(args=None):
-	rclpy.init(args=args)
+    rclpy.init(args=args)
 
-	node = ros2_ReachSocketHandler()
-	
-
-	# Start the nodes processing thread
-	node.start()
-    #rclpy.spin(node)
-
-	# at termination of the code (generally with ctrl-c) Destroy the node explicitly
-	node.destroy_node()
-	rclpy.shutdown()
+    node = ros2_ReachSocketHandler()
+    rclpy.spin(node)
+    
+    # at termination of the code (generally with ctrl-c) Destroy the node explicitly
+    node.destroy_node()
+    rclpy.shutdown()
 
 if __name__ == '__main__':
-	main()
+    main()
